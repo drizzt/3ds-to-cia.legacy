@@ -302,7 +302,8 @@ if __name__ == "__main__":
             entries += result[0]
             data = data + result[1]
     
-    dndFix = os.path.join(os.path.dirname(os.path.realpath(sys.argv[0])), 'ncchinfo.bin') #Fix drag'n'drop
+#    dndFix = os.path.join(os.path.dirname(os.path.realpath(sys.argv[0])), 'ncchinfo.bin') #Fix drag'n'drop
+    dndFix = 'ncchinfo.bin'
     with open(dndFix, 'wb') as fh:
         fh.write(struct.pack('<IIII',0xFFFFFFFF, 0xF0000004, entries, 0))
         fh.write(data)
