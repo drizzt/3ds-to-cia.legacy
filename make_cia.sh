@@ -7,6 +7,10 @@
 set -e
 set -o pipefail
 
+case "$OS" in
+Windows*) ext=.exe ;;
+esac
+
 python2 ./tools/ncchinfo_gen.py roms/*.3[dD][sS] >/dev/null
 
 echo "Copy ncchinfo.bin to your 3DS and make it generates the required xorpads"
@@ -19,8 +23,9 @@ fail=0
 for rom in roms/*.3[dD][sS]; do
 	rom_base="${rom#roms/}"
 
+
 	# Uppercase title id (as in ncchinfo.bin)
-	title_id=$(./tools/rom_tool -p "$rom" | awk '/^ > Title ID:/{print toupper($4); exit}')
+	title_id=$(./tools/rom_tool$ext -p "$rom" | awk '/^ > Title ID:/{print toupper($4); exit}')
 	xorpad="$title_id.Main.exheader.xorpad"
 
 	# Verify xorpads
@@ -43,9 +48,9 @@ for rom in roms/*.3[dD][sS]; do
 	rom="_tmp/$rom_base"
 
 	# Remove update data
-	./tools/rom_tool -u "$rom"
+	./tools/rom_tool$ext -u "$rom"
 	# Extract cxi and cfa
-	./tools/rom_tool --extract=_tmp "$rom"
+	./tools/rom_tool$ext --extract=_tmp "$rom"
 
 	# Fix cxi
 	python3 ./tools/fix_cxi.py _tmp/*APPDATA.cxi "xorpads/$xorpad"
@@ -56,7 +61,7 @@ for rom in roms/*.3[dD][sS]; do
 		cmdline+=(-content "$content":$i:$i)
 		i=$((i + 1))
 	done
-	./tools/makerom -f cia -o "cia/${rom_base%.3[dD][sS]}.cia" "${cmdline[@]}"
+	./tools/makerom$ext -f cia -o "cia/${rom_base%.3[dD][sS]}.cia" "${cmdline[@]}"
 
 	python3 ./tools/fix_cia.py "cia/${rom_base%.3[dD][sS]}.cia" "xorpads/$xorpad"
 done
