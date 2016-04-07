@@ -16,7 +16,7 @@ esac
 echo "Copy ncchinfo.bin to your 3DS and make it generates the required xorpads"
 echo "Then copy the generated xorpads in the 'xorpads' directory"
 
-echo "Press enter to continue..."
+echo "Press any key to continue..."
 read -sn 1 || true
 
 fail=0
