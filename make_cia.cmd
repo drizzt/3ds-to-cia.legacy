@@ -4,6 +4,14 @@ REM Copyright (c) 2016 Timothy Redaelli
 REM Based on contents by mid-kid
 REM Released under GPLv3+
 
+DIR /B "roms\*.3ds" 2>NUL
+
+IF %ERRORLEVEL% NEQ 0 (
+	ECHO No valid files in rom directory found. >&2
+	SET FAIL=1
+	GOTO EXIT
+)
+
 tools\win32\ncchinfo_gen.exe roms\*.3ds
 
 ECHO Copy ncchinfo.bin to your 3DS and make it generates the required xorpads
@@ -14,22 +22,23 @@ PAUSE
 REM Verify ROMs and xorpads
 SETLOCAL ENABLEDELAYEDEXPANSION
 SET FAIL=0
-FOR /F "tokens=*" %%r IN ('dir /s /b "roms\*.3ds"') DO (
-	@CALL :get_titleid "%%r" title_id
+FOR /F "tokens=*" %%r IN ('DIR /S /B "roms\*.3ds"') DO (
+	CALL :get_titleid "%%r" title_id
 
 	IF "!title_id!" == "" (
 		ECHO "%%r invalid." >&2
-		SET FAIL=1
-		EXIT /B
+		SET FAIL=2
+		GOTO EXIT
 	) ELSE (
 		SET xorpad=!title_id!.Main.exheader.xorpad
 		IF NOT EXIST "xorpads\!xorpad!" (
 			ECHO !xorpad! not found. Please put it into the 'xorpads' directory. >&2
-			SET FAIL=1
+			SET FAIL=3
+			GOTO EXIT
 		)
 	)
 )
-if NOT %FAIL% == 0 EXIT /B %FAIL%
+if %FAIL% NEQ 0 GOTO EXIT
 ENDLOCAL & SET xorpad=%xorpad%
 
 SETLOCAL ENABLEDELAYEDEXPANSION
@@ -41,7 +50,7 @@ FOR /F "tokens=*" %%r IN ('DIR /B "roms\*.3ds"') DO (
         REM Remove any update data
         DEL _tmp\*_UPDATEDATA.cfa 2>NUL
 	REM Fix cxi
-	tools\win32\fix_cxi.exe _tmp\*APPDATA.cxi "xorpads\%xorpad%"
+	tools\win32\fix_cxi.exe _tmp\*_APPDATA.cxi "xorpads\%xorpad%"
 
 	REM Generate and fix CIA file
 	set /A i=0
@@ -49,14 +58,15 @@ FOR /F "tokens=*" %%r IN ('DIR /B "roms\*.3ds"') DO (
 		SET cmdline=!cmdline! -content ^"_tmp\%%c^":!i!:!i!
 		SET /A "i += 1"
 	)
-	tools\win32\makerom.exe -f cia -o "cia\%%~nr.cia" !cmdline!
+	tools\win32\makerom.exe -v -f cia -o "cia\%%~nr.cia" !cmdline!
 	tools\win32\fix_cia.exe "cia\%%~nr.cia" "xorpads\%xorpad%"
 )
 ENDLOCAL
 
 RD /Q /S _tmp 2>NUL
 
-EXIT /B %ERRORLEVEL%
+SET FAIL=0
+GOTO EXIT
 
 REM Uppercase title id (as in ncchinfo.bin)
 :get_titleid
@@ -77,5 +87,9 @@ REM Uppercase title id (as in ncchinfo.bin)
 		SET var_=%var_:d=D%
 		SET var_=%var_:e=E%
 		SET var_=%var_:f=F%
-	ENDLOCAL & IF NOT "%~2" == "" SET %2=%var_%
+	ENDLOCAL & IF NOT "%~2" == "" SET %~2=%var_%
 	GOTO :EOF
+
+:EXIT
+	PAUSE
+	EXIT /B %FAIL%
