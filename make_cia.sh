@@ -11,7 +11,7 @@ case "$OS" in
 Windows*) ext=.exe ;;
 esac
 
-python2 ./tools/ncchinfo_gen.py roms/*.3[dD][sS] >/dev/null
+./tools/ncchinfo_gen.py roms/*.3[dD][sS] >/dev/null
 
 echo "Copy ncchinfo.bin to your 3DS and make it generates the required xorpads"
 echo "Then copy the generated xorpads in the 'xorpads' directory"
@@ -44,16 +44,14 @@ for rom in roms/*.3[dD][sS]; do
 
 	rm -rf _tmp
 	mkdir -p _tmp
-	cp "$rom" "_tmp"
-	rom="_tmp/$rom_base"
 
-	# Remove update data
-	./tools/rom_tool$ext -u "$rom"
 	# Extract cxi and cfa
 	./tools/rom_tool$ext --extract=_tmp "$rom"
+	# Remove any update data
+	rm -f _tmp/*_UPDATEDATA.cfa
 
 	# Fix cxi
-	python3 ./tools/fix_cxi.py _tmp/*APPDATA.cxi "xorpads/$xorpad"
+	./tools/fix_cxi.py _tmp/*APPDATA.cxi "xorpads/$xorpad"
 
 	# Generate CIA file
 	i=0
@@ -63,7 +61,7 @@ for rom in roms/*.3[dD][sS]; do
 	done
 	./tools/makerom$ext -f cia -o "cia/${rom_base%.3[dD][sS]}.cia" "${cmdline[@]}"
 
-	python3 ./tools/fix_cia.py "cia/${rom_base%.3[dD][sS]}.cia" "xorpads/$xorpad"
+	./tools/fix_cia.py "cia/${rom_base%.3[dD][sS]}.cia" "xorpads/$xorpad"
 done
 
 rm -rf _tmp

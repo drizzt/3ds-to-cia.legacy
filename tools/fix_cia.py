@@ -1,8 +1,10 @@
+#!/usr/bin/env python2
+
 from sys import argv
 from struct import pack, unpack
 
 f = open(argv[1], "r+b")
-xorpad = open(argv[2], "rb").read(0x400)
+xorpad = bytearray(open(argv[2], "rb").read(0x400))
 
 def xor(bytes, xorpad):
     if len(bytes) > len(xorpad):
@@ -11,7 +13,7 @@ def xor(bytes, xorpad):
     result = b""
     for x in range(len(bytes)):
         result += pack("B", bytes[x] ^ xorpad[x])
-    return result
+    return bytearray(result)
 
 def roundup(x, y):
     x = int(x)
@@ -31,7 +33,7 @@ cxi_ofs = roundup(header_size, 0x40) + roundup(cert_size, 0x40) + roundup(ticket
 exh_ofs = cxi_ofs + 0x200
 # extract exheader
 f.seek(exh_ofs, 0)
-exheader = f.read(0x400)
+exheader = bytearray(f.read(0x400))
 # decrypt exheader
 f.seek(cxi_ofs + 0x118)
 titleid = f.read(8)

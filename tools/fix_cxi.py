@@ -1,9 +1,11 @@
+#!/usr/bin/env python2
+
 import hashlib
 from sys import argv
 from struct import pack
 
 f = open(argv[1], "r+b")
-xorpad = open(argv[2], "rb").read(0x400)
+xorpad = bytearray(open(argv[2], "rb").read(0x400))
 
 def xor(bytes, xorpad):
     if len(bytes) > len(xorpad):
@@ -12,7 +14,7 @@ def xor(bytes, xorpad):
     result = b""
     for x in range(len(bytes)):
         result += pack("B", bytes[x] ^ xorpad[x])
-    return result
+    return bytearray(result)
 
 def sha256(s):
     h = hashlib.sha256()
@@ -24,7 +26,7 @@ f.seek(0x118)
 titleid = f.read(8)
 # get exheader
 f.seek(0x200)
-exheader = f.read(0x400)
+exheader = bytearray(f.read(0x400))
 # decrypt exheader
 exheader = xor(exheader, xorpad)
 # set sd flag in exheader

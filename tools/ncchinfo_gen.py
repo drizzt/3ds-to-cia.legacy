@@ -92,7 +92,7 @@ ncsdPartitions = [b'Main', b'Manual', b'DownloadPlay', b'Partition4', b'Partitio
 def roundUp(numToRound, multiple):  #From http://stackoverflow.com/a/3407254
     if (multiple == 0):
         return numToRound
-    
+
     remainder = abs(numToRound) % multiple
     if (remainder == 0):
         return numToRound
@@ -120,7 +120,7 @@ def getNcchAesCounter(header, type): #Function based on code from ctrtool's sour
         counter[:8] = bytearray(header.titleId)
         for i in xrange(4):
             counter[12+i] = chr((x>>((3-i)*8)) & 0xFF)
-    
+
     return bytes(counter)
 
 
@@ -128,11 +128,11 @@ def parseNCSD(fh):
     print 'Parsing NCSD in file "%s":' % os.path.basename(fh.name)
     entries = 0
     data = ''
-    
+
     fh.seek(0)
     header = ncsdHdr()
     fh.readinto(header) #Reads header into structure
-    
+
     for i in xrange(len(header.offset_sizeTable)):
         if header.offset_sizeTable[i].offset:
             result = parseNCCH(fh, header.offset_sizeTable[i].offset * mediaUnitSize, i, reverseCtypeArray(header.titleId), 0)
@@ -148,16 +148,16 @@ def parseNCCH(fh, offs=0, idx=0, titleId='', standAlone=1):
         print 'Parsing NCCH in file "%s":' % os.path.basename(fh.name)
     entries = 0
     data = ''
-    
+
     fh.seek(offs)
     header = ncchHdr()
     fh.readinto(header) #Reads header into structure
-    
+
     if titleId == '':
         titleId = reverseCtypeArray(header.titleId)
-    
+
     keyY = bytearray(header.signature[:16])
-    
+
     if not standAlone:
         print tab + 'NCCH Offset: %08X' % offs
     print tab + 'Product code: ' + str(bytearray(header.productCode)).rstrip('\x00')
@@ -166,12 +166,12 @@ def parseNCCH(fh, offs=0, idx=0, titleId='', standAlone=1):
     print tab + 'KeyY: %s' % hexlify(keyY).upper()
     print tab + 'Title ID: %s' % reverseCtypeArray(header.titleId)
     print tab + 'Format version: %d' % header.formatVersion
-    
+
     ncchFlag3 = bytearray(header.flags)[3]
     if ncchFlag3:
         print tab + 'Uses 7.x NCCH crypto'
-       
-    fixed_key_flag = 0   
+
+    fixed_key_flag = 0
     ncchFlag7 = bytearray(header.flags)[7]
     if ncchFlag7 == 0x20:
         print tab + 'Uses 9.x SEED crypto'
@@ -189,9 +189,9 @@ def parseNCCH(fh, offs=0, idx=0, titleId='', standAlone=1):
     else:
         print tab + 'UNKNOWN FLAG DETECTED?'
         ncchFlag7 = 0; # prevent issues with old NCCH padgen
-   
+
     print ''
-    
+
     if header.exhdrSize:
         data = data + parseNCCHSection(header, ncchSection.exheader, 0, fixed_key_flag, 1, tab)
         data = data + genOutName(titleId, ncsdPartitions[idx], b'exheader')
@@ -211,9 +211,9 @@ def parseNCCH(fh, offs=0, idx=0, titleId='', standAlone=1):
         data = data + genOutName(titleId, ncsdPartitions[idx], b'romfs')
         entries += 1
         print ''
-    
+
     print ''
-    
+
     return [entries, data]
 
 def parseNCCHSection(header, type, ncchFlag3, ncchFlag7, doPrint, tab):
@@ -232,20 +232,20 @@ def parseNCCHSection(header, type, ncchFlag3, ncchFlag7, doPrint, tab):
     else:
         print 'Invalid NCCH section type was somehow passed in. :/'
         sys.exit()
-    
+
     counter = getNcchAesCounter(header, type)
     keyY = bytearray(header.signature[:16])
     titleId = struct.unpack('<Q',(bytearray(header.programId[:8])))[0]
-    
+
     sectionMb = roundUp(sectionSize, 1024*1024) / (1024*1024)
     if sectionMb == 0:
         sectionMb = 1 #Should never happen, but meh.
-    
+
     if doPrint:
         print tab + '%s offset:  %08X' % (sectionName, offset)
         print tab + '%s counter: %s' % (sectionName, hexlify(counter))
         print tab + '%s Megabytes(rounded up): %d' % (sectionName, sectionMb)
-    
+
     return struct.pack('<16s16sIIIIQ', str(counter), str(keyY), sectionMb, 0, ncchFlag7, ncchFlag3, titleId)
 
 def genOutName(titleId, partitionName, sectionName):
@@ -253,7 +253,7 @@ def genOutName(titleId, partitionName, sectionName):
     if len(outName) > 112:
         print "Output file name too large. This shouldn't happen."
         sys.exit()
-    
+
     return outName + (b'\x00'*(112-len(outName))) #Pad out so whole entry is 160 bytes (48 bytes are set before filename)
 
 
@@ -265,29 +265,29 @@ if __name__ == "__main__":
         print '  Wildcards are supported'
         print '  Example: ncchinfo_gen.py *.ncch SM3DL.3ds'
         sys.exit()
-    
+
     inpFiles = []
     existFiles = []
-    
+
     for i in xrange(len(sys.argv)-1):
         inpFiles = inpFiles + glob.glob(sys.argv[i+1].replace('[','[[]')) #Needed for wildcard support on Windows
-    
+
     for i in xrange(len(inpFiles)):
         if os.path.isfile(inpFiles[i]):
             existFiles.append(inpFiles[i])
-    
+
     if existFiles == []:
         print "Input files don't exist"
         sys.exit()
-    
+
     print ''
-    
+
     entries = 0
     data = ''
-    
+
     for file in existFiles:
         result = []
-        
+
         with open(file,'rb') as fh:
             fh.seek(0x100)
             magic = fh.read(4)
@@ -297,15 +297,15 @@ if __name__ == "__main__":
             elif magic == b'NCCH':
                 result = parseNCCH(fh)
                 print ''
-        
+
         if result:
             entries += result[0]
             data = data + result[1]
-    
+
 #    dndFix = os.path.join(os.path.dirname(os.path.realpath(sys.argv[0])), 'ncchinfo.bin') #Fix drag'n'drop
     dndFix = 'ncchinfo.bin'
     with open(dndFix, 'wb') as fh:
         fh.write(struct.pack('<IIII',0xFFFFFFFF, 0xF0000004, entries, 0))
         fh.write(data)
-    
+
     print 'Done!'
