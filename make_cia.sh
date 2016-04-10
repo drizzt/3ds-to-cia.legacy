@@ -60,27 +60,39 @@ for rom in roms/*.3[dD][sS]; do
 		continue
 	fi
 
+	rm -rf _tmp
+	mkdir -p _tmp
+
 	# Verify xorpads (both "standard" an "custom format"
-	if [ -f "xorpads/$title_id.Main.exheader.xorpad" ]; then
-		xorpad="$title_id.Main.exheader.xorpad"
-	else
+	xorpad=
+	for x in xorpads/*.zip; do
+		[ -f "$x" ] || continue
 		rom_crc32=$("$crc32" "$rom")
-		xorpad="$title_id.$rom_crc32.Main.exheader.xorpad"
+		if unzip -d _tmp "$x" "$title_id.$rom_crc32.Main.exheader.xorpad"; then
+			xorpad="_tmp/$title_id.$rom_crc32.Main.exheader.xorpad"
+			break
+		fi
+	done
+
+	if [ -z "$xorpad" ]; then
+		if [ -f "xorpads/$title_id.Main.exheader.xorpad" ]; then
+			xorpad="xorpads/$title_id.Main.exheader.xorpad"
+		else
+			rom_crc32=$("$crc32" "$rom")
+			xorpad="xorpads/$title_id.$rom_crc32.Main.exheader.xorpad"
+		fi
 	fi
 
-	if ! [ -f "xorpads/$xorpad" ]; then
-		echo "$xorpad not found. Please put it into the 'xorpads' directory." >&2
+	if ! [ -f "$xorpad" ]; then
+		echo "$(basename "$xorpad") not found. Please put it into the 'xorpads' directory." >&2
 		fail=2
 		continue
 	fi
-	if [ $(stat -c "%s" "xorpads/$xorpad") -lt 1024 ]; then
-		echo "$xorpad must be bigger than 1KiB." >&2
+	if [ $(stat -c "%s" "$xorpad") -lt 1024 ]; then
+		echo "$(basename "$xorpad") must be bigger than 1KiB." >&2
 		fail=3
 		continue
 	fi
-
-	rm -rf _tmp
-	mkdir -p _tmp
 
 	# Extract cxi and cfa
 	"$rom_tool" --extract=_tmp "$rom"
@@ -89,7 +101,7 @@ for rom in roms/*.3[dD][sS]; do
 	rm -f _tmp/*_UPDATEDATA.cfa
 
 	# Fix cxi
-	"$fix_cxi" _tmp/*_APPDATA.cxi "xorpads/$xorpad"
+	"$fix_cxi" _tmp/*_APPDATA.cxi "$xorpad"
 
 	# Generate CIA file
 	i=0
@@ -100,7 +112,7 @@ for rom in roms/*.3[dD][sS]; do
 	done
 	"$makerom" -v -f cia -o "cia/$rom_base.cia" $cmdline
 
-	"$fix_cia" "cia/$rom_base.cia" "xorpads/$xorpad"
+	"$fix_cia" "cia/$rom_base.cia" "$xorpad"
 done
 
 rm -rf _tmp
