@@ -73,8 +73,8 @@ for rom in roms/*.3[dD][sS]; do
 		fail=2
 		continue
 	fi
-	if [ $(stat -c "%s" "xorpads/$xorpad") -ne 1048576 ]; then
-		echo "$xorpad must be 1MiB size." >&2
+	if [ $(stat -c "%s" "xorpads/$xorpad") -lt 1024 ]; then
+		echo "$xorpad must be bigger than 1KiB." >&2
 		fail=3
 		continue
 	fi
