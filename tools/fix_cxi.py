@@ -29,6 +29,11 @@ f.seek(0x200)
 exheader = bytearray(f.read(0x400))
 # decrypt exheader
 exheader = xor(exheader, xorpad)
+# verify exheader sha256sum
+f.seek(0x160)
+orig_sha256 = f.read(0x20)
+if sha256(exheader) != orig_sha256:
+    raise Exception("xorpad invalid")
 # set sd flag in exheader
 exh_flags = exheader[0xD]
 exh_flags = exh_flags | 2

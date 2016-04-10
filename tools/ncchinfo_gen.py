@@ -26,6 +26,10 @@ import struct
 from ctypes import *
 from binascii import hexlify
 
+import zipfile
+import tempfile
+import shutil
+
 mediaUnitSize = 0x200
 
 class ncchHdr(Structure):
@@ -288,19 +292,39 @@ if __name__ == "__main__":
     for file in existFiles:
         result = []
 
-        with open(file,'rb') as fh:
-            fh.seek(0x100)
-            magic = fh.read(4)
-            if magic == b'NCSD':
-                result = parseNCSD(fh)
-                print ''
-            elif magic == b'NCCH':
-                result = parseNCCH(fh)
-                print ''
+        if zipfile.is_zipfile(file):
+            with zipfile.ZipFile(file, 'r') as e:
+                for entry in e.infolist():
+                    if not entry.filename.lower().endswith('.3ds'): continue
+                    tmpdir = tempfile.mkdtemp()
+                    with open(os.path.join(tmpdir, entry.filename), 'w+b') as fh:
+                        fh.write(e.open(entry, 'r').read(0x10000))
+                        fh.seek(0x100)
+                        magic = fh.read(4)
+                        if magic == b'NCSD':
+                            result = parseNCSD(fh)
+                            print ''
+                        elif magic == b'NCCH':
+                            result = parseNCCH(fh)
+                            print ''
+                    shutil.rmtree(tmpdir)
+		    if result:
+			entries += result[0]
+			data = data + result[1]
+	else:
+	    with open(file,'rb') as fh:
+		fh.seek(0x100)
+		magic = fh.read(4)
+		if magic == b'NCSD':
+		    result = parseNCSD(fh)
+		    print ''
+		elif magic == b'NCCH':
+		    result = parseNCCH(fh)
+		    print ''
 
-        if result:
-            entries += result[0]
-            data = data + result[1]
+	    if result:
+		entries += result[0]
+		data = data + result[1]
 
 #    dndFix = os.path.join(os.path.dirname(os.path.realpath(sys.argv[0])), 'ncchinfo.bin') #Fix drag'n'drop
     dndFix = 'ncchinfo.bin'
