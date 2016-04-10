@@ -16,7 +16,7 @@
 #   4 bytes   Uses 9x SeedCrypto (0 or 1)
 #   4 bytes   Uses 7x crypto? (0 or 1)
 #   8 bytes   Title ID
-# 112 bytes   Output file name in UTF-8 (format used: "/titleId.partitionName.sectionName.xorpad")
+# 112 bytes   Output file name in UTF-8 (format used: "/titleId.CRC32.partitionName.sectionName.xorpad")
 #####
 
 import os
@@ -24,11 +24,11 @@ import sys
 import glob
 import struct
 from ctypes import *
-from binascii import hexlify
 
 import zipfile
 import tempfile
 import shutil
+import binascii
 
 mediaUnitSize = 0x200
 
@@ -167,7 +167,7 @@ def parseNCCH(fh, offs=0, idx=0, titleId='', standAlone=1):
     print tab + 'Product code: ' + str(bytearray(header.productCode)).rstrip('\x00')
     if not standAlone:
         print tab + 'Partition number: %d' % idx
-    print tab + 'KeyY: %s' % hexlify(keyY).upper()
+    print tab + 'KeyY: %s' % binascii.hexlify(keyY).upper()
     print tab + 'Title ID: %s' % reverseCtypeArray(header.titleId)
     print tab + 'Format version: %d' % header.formatVersion
 
@@ -247,14 +247,14 @@ def parseNCCHSection(header, type, ncchFlag3, ncchFlag7, doPrint, tab):
 
     if doPrint:
         print tab + '%s offset:  %08X' % (sectionName, offset)
-        print tab + '%s counter: %s' % (sectionName, hexlify(counter))
+        print tab + '%s counter: %s' % (sectionName, binascii.hexlify(counter))
         print tab + '%s bytes: %d' % (sectionName, sectionSize)
         print tab + '%s Megabytes(rounded up): %d' % (sectionName, sectionMb)
 
     return struct.pack('<16s16sIIIIQ', str(counter), str(keyY), sectionMb, 0, ncchFlag7, ncchFlag3, titleId)
 
 def genOutName(titleId, partitionName, sectionName):
-    outName = b'/%s.%s.%s.xorpad' % (titleId, partitionName, sectionName)
+    outName = b'/%s.%08lx.%s.%s.xorpad' % (titleId, crc32, partitionName, sectionName)
     if len(outName) > 112:
         print "Output file name too large. This shouldn't happen."
         sys.exit()
@@ -289,6 +289,7 @@ if __name__ == "__main__":
 
     entries = 0
     data = ''
+    crc32 = 0
 
     for file in existFiles:
         result = []
@@ -297,6 +298,7 @@ if __name__ == "__main__":
             with zipfile.ZipFile(file, 'r') as e:
                 for entry in e.infolist():
                     if not entry.filename.lower().endswith('.3ds'): continue
+		    crc32 = entry.CRC
                     tmpdir = tempfile.mkdtemp()
                     with open(os.path.join(tmpdir, entry.filename), 'w+b') as fh:
                         fh.write(e.open(entry, 'r').read(0x10000))
@@ -314,6 +316,7 @@ if __name__ == "__main__":
 			data = data + result[1]
 	else:
 	    with open(file,'rb') as fh:
+		crc32 = binascii.crc32(fh.read()) & 0xFFFFFFFF
 		fh.seek(0x100)
 		magic = fh.read(4)
 		if magic == b'NCSD':

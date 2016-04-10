@@ -17,6 +17,7 @@ fi
 
 case "$OS" in
 Windows_NT)
+	crc32=./tools/win32/crc32.exe
 	ncchinfo_gen=./tools/win32/ncchinfo_gen.exe
 	fix_cxi=./tools/win32/fix_cxi.exe
 	fix_cia=./tools/win32/fix_cia.exe
@@ -30,6 +31,7 @@ Windows_NT)
 	fix_cia=./tools/fix_cia.py
 	case "$(uname -sm)" in
 	"Linux x86_64")
+		crc32=./tools/linux64/crc32
 		rom_tool=./tools/linux64/rom_tool
 		makerom=./tools/linux64/makerom
 		;;
@@ -58,8 +60,14 @@ for rom in roms/*.3[dD][sS]; do
 		continue
 	fi
 
-	# Verify xorpads
-	xorpad="$title_id.Main.exheader.xorpad"
+	# Verify xorpads (both "standard" an "custom format"
+	if [ -f "xorpads/$title_id.Main.exheader.xorpad" ]; then
+		xorpad="$title_id.Main.exheader.xorpad"
+	else
+		rom_crc32=$("$crc32" "$rom")
+		xorpad="$title_id.$rom_crc32.Main.exheader.xorpad"
+	fi
+
 	if ! [ -f "xorpads/$xorpad" ]; then
 		echo "$xorpad not found. Please put it into the 'xorpads' directory." >&2
 		fail=2
@@ -76,6 +84,7 @@ for rom in roms/*.3[dD][sS]; do
 
 	# Extract cxi and cfa
 	"$rom_tool" --extract=_tmp "$rom"
+
 	# Remove any update data
 	rm -f _tmp/*_UPDATEDATA.cfa
 
