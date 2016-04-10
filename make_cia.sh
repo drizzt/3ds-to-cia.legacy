@@ -6,8 +6,66 @@
 
 set -e
 
+IFS='
+'
+
 is_empty() {
 	! [ -f "$1" ]
+}
+
+# Extract the (uppercase) title id from the rom
+# get_title_id rom_filename
+get_title_id() {
+	local title_id=$("$rom_tool" -p "$1" | awk '/^ > Title ID:/{print toupper($4); exit}')
+	if [ -z "$title_id" ]; then
+		echo "$1 is corrupted" >&2
+		return 1
+	fi
+	printf '%s' "$title_id"
+}
+
+# Find and check the xorpad file (both standard and custom format)
+# find_check_xorpad rom_filename rom_crc32 [check]
+find_check_xorpad() {
+	local rom="$1" rom_crc32="$2" check="$3" xorpad= title_id= x
+	title_id=$(get_title_id "$rom") || return 1
+
+	for x in xorpads/*.zip; do
+		[ -f "$x" ] || continue
+		if [ -n "$check" ]; then
+			if unzip -l "$x" "$title_id.$rom_crc32.Main.exheader.xorpad" >/dev/null; then
+				xorpad="_tmp/$title_id.$rom_crc32.Main.exheader.xorpad"
+				break
+			fi
+		else
+			if unzip -d _tmp "$x" "$title_id.$rom_crc32.Main.exheader.xorpad" >/dev/null; then
+				xorpad="_tmp/$title_id.$rom_crc32.Main.exheader.xorpad"
+				break
+			fi
+		fi
+	done
+
+	# Zipped xorpad is already verified
+	if [ -z "$xorpad" ]; then
+		if [ -f "xorpads/$title_id.Main.exheader.xorpad" ]; then
+			xorpad="xorpads/$title_id.Main.exheader.xorpad"
+		else
+			xorpad="xorpads/$title_id.$rom_crc32.Main.exheader.xorpad"
+		fi
+
+		if ! [ -f "$xorpad" ]; then
+			echo "$(basename "$xorpad") not found. Please put it into the 'xorpads' directory." >&2
+			return 2
+		fi
+
+		if [ $(stat -c "%s" "$xorpad") -lt 1024 ]; then
+			echo "$(basename "$xorpad") must be bigger than 1KiB." >&2
+			return 3
+		fi
+	fi
+
+	[ -z "$check" ] && echo "$xorpad"
+	return 0
 }
 
 if is_empty roms/*.3[dD][sS]; then
@@ -39,23 +97,38 @@ Windows_NT)
 	;;
 esac
 
-"$ncchinfo_gen" roms/*.3[dD][sS] >/dev/null
+roms_crc32=
+for rom in roms/*.3[dD][sS]; do
+	rom_crc32="$("$crc32" "$rom")"
+	roms_crc32="$roms_crc32
+$rom_crc32"
+	find_check_xorpad "$rom" "$rom_crc32" "check" >/dev/null || to_generate="$to_generate
+$rom"
+done
+if [ -n "$to_generate" ]; then
+	"$ncchinfo_gen" $to_generate >/dev/null
 
-echo "Copy ncchinfo.bin to your 3DS and make it generates the required xorpads"
-echo "Then copy the generated xorpads in the 'xorpads' directory"
+	echo "Copy ncchinfo.bin to your 3DS and make it generates the required xorpads"
+	echo "Then copy the generated xorpads in the 'xorpads' directory"
 
-echo "Press enter to continue..."
-read _ || true
+	echo "Press enter to continue..."
+	read _ || true
+fi
+
+trap 'rm -rf "_tmp" ; exit' EXIT
 
 fail=0
+n=0
+set -f
+set -- $roms_crc32
+set +f
 for rom in roms/*.3[dD][sS]; do
 	rom_base="${rom#roms/}"
 	rom_base="${rom_base%.3[dD][sS]}"
+	n=$((n + 1))
 
 	# Uppercase title id (as in ncchinfo.bin)
-	title_id=$("$rom_tool" -p "$rom" | awk '/^ > Title ID:/{print toupper($4); exit}')
-	if [ -z "$title_id" ]; then
-		echo "$rom is corrupted" >&2
+	if ! title_id=$(get_title_id "$rom"); then
 		fail=1
 		continue
 	fi
@@ -63,34 +136,11 @@ for rom in roms/*.3[dD][sS]; do
 	rm -rf _tmp
 	mkdir -p _tmp
 
-	# Verify xorpads (both "standard" an "custom format"
-	xorpad=
-	for x in xorpads/*.zip; do
-		[ -f "$x" ] || continue
-		rom_crc32=$("$crc32" "$rom")
-		if unzip -d _tmp "$x" "$title_id.$rom_crc32.Main.exheader.xorpad"; then
-			xorpad="_tmp/$title_id.$rom_crc32.Main.exheader.xorpad"
-			break
-		fi
-	done
+	eval rom_crc32=\$${n}
 
-	if [ -z "$xorpad" ]; then
-		if [ -f "xorpads/$title_id.Main.exheader.xorpad" ]; then
-			xorpad="xorpads/$title_id.Main.exheader.xorpad"
-		else
-			rom_crc32=$("$crc32" "$rom")
-			xorpad="xorpads/$title_id.$rom_crc32.Main.exheader.xorpad"
-		fi
-	fi
-
-	if ! [ -f "$xorpad" ]; then
-		echo "$(basename "$xorpad") not found. Please put it into the 'xorpads' directory." >&2
-		fail=2
-		continue
-	fi
-	if [ $(stat -c "%s" "$xorpad") -lt 1024 ]; then
-		echo "$(basename "$xorpad") must be bigger than 1KiB." >&2
-		fail=3
+	# Verify xorpads (both "standard" an "custom format")
+	if ! xorpad=$(find_check_xorpad "$rom" "$rom_crc32"); then
+		fail=$?
 		continue
 	fi
 
@@ -107,12 +157,12 @@ for rom in roms/*.3[dD][sS]; do
 	i=0
 	cmdline=
 	for content in _tmp/*.cxi _tmp/*.cfa; do
-		cmdline="$cmdline -content "$content":$i:$i"
+		cmdline="$cmdline
+-content
+$content:$i:$i"
 		i=$((i + 1))
 	done
 	"$makerom" -v -f cia -o "cia/$rom_base.cia" $cmdline
 
 	"$fix_cia" "cia/$rom_base.cia" "$xorpad"
 done
-
-rm -rf _tmp
