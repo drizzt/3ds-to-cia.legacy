@@ -224,7 +224,7 @@ def parseNCCHSection(header, type, ncchFlag3, ncchFlag7, doPrint, tab):
     if type == ncchSection.exheader:
         sectionName = 'ExHeader'
         offset = 0x200 #Always 0x200
-        sectionSize = header.exhdrSize * mediaUnitSize
+        sectionSize = header.exhdrSize
     elif type == ncchSection.exefs:
         sectionName = 'ExeFS'
         offset = header.exefsOffset * mediaUnitSize
@@ -248,6 +248,7 @@ def parseNCCHSection(header, type, ncchFlag3, ncchFlag7, doPrint, tab):
     if doPrint:
         print tab + '%s offset:  %08X' % (sectionName, offset)
         print tab + '%s counter: %s' % (sectionName, hexlify(counter))
+        print tab + '%s bytes: %d' % (sectionName, sectionSize)
         print tab + '%s Megabytes(rounded up): %d' % (sectionName, sectionMb)
 
     return struct.pack('<16s16sIIIIQ', str(counter), str(keyY), sectionMb, 0, ncchFlag7, ncchFlag3, titleId)
