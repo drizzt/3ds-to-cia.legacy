@@ -27,44 +27,41 @@ get_title_id() {
 # Find and check the xorpad file (both standard and custom format)
 # find_check_xorpad rom_filename rom_crc32 [check]
 find_check_xorpad() {
-	local rom="$1" rom_crc32="$2" check="$3" xorpad= title_id= x
+	local rom="$1" rom_crc32="$2" xorpad= title_id= x
 	title_id=$(get_title_id "$rom") || return 1
+
+	if [ -f "_tmp/$title_id.$rom_crc32.Main.exheader.xorpad" ]; then
+		echo "_tmp/$title_id.$rom_crc32.Main.exheader.xorpad"
+		return 0
+	fi
 
 	for x in xorpads/*.zip; do
 		[ -f "$x" ] || continue
-		if [ -n "$check" ]; then
-			if unzip -l "$x" "$title_id.$rom_crc32.Main.exheader.xorpad" >/dev/null; then
-				xorpad="_tmp/$title_id.$rom_crc32.Main.exheader.xorpad"
-				break
-			fi
-		else
-			if unzip -d _tmp "$x" "$title_id.$rom_crc32.Main.exheader.xorpad" >/dev/null; then
-				xorpad="_tmp/$title_id.$rom_crc32.Main.exheader.xorpad"
-				break
-			fi
+		if unzip -d _tmp "$x" "$title_id.$rom_crc32.Main.exheader.xorpad" >/dev/null && \
+			[ -f "_tmp/$title_id.$rom_crc32.Main.exheader.xorpad" ]; then
+
+			echo "_tmp/$title_id.$rom_crc32.Main.exheader.xorpad"
+			return 0
 		fi
 	done
 
-	# Zipped xorpad is already verified
-	if [ -z "$xorpad" ]; then
-		if [ -f "xorpads/$title_id.Main.exheader.xorpad" ]; then
-			xorpad="xorpads/$title_id.Main.exheader.xorpad"
-		else
-			xorpad="xorpads/$title_id.$rom_crc32.Main.exheader.xorpad"
-		fi
-
-		if ! [ -f "$xorpad" ]; then
-			echo "$(basename "$xorpad") not found. Please put it into the 'xorpads' directory." >&2
-			return 2
-		fi
-
-		if [ $(stat -c "%s" "$xorpad") -lt 1024 ]; then
-			echo "$(basename "$xorpad") must be bigger than 1KiB." >&2
-			return 3
-		fi
+	if [ -f "xorpads/$title_id.Main.exheader.xorpad" ]; then
+		xorpad="xorpads/$title_id.Main.exheader.xorpad"
+	else
+		xorpad="xorpads/$title_id.$rom_crc32.Main.exheader.xorpad"
 	fi
 
-	[ -z "$check" ] && echo "$xorpad"
+	if ! [ -f "$xorpad" ]; then
+		echo "$(basename "$xorpad") not found. Please put it into the 'xorpads' directory." >&2
+		return 2
+	fi
+
+	if [ $(stat -c "%s" "$xorpad") -lt 1024 ]; then
+		echo "$(basename "$xorpad") must be bigger than 1KiB." >&2
+		return 3
+	fi
+
+	echo "$xorpad"
 	return 0
 }
 
@@ -97,12 +94,15 @@ Windows_NT)
 	;;
 esac
 
+rm -rf _tmp
+mkdir -p _tmp
+
 roms_crc32=
 for rom in roms/*.3[dD][sS]; do
 	rom_crc32="$("$crc32" "$rom")"
 	roms_crc32="$roms_crc32
 $rom_crc32"
-	find_check_xorpad "$rom" "$rom_crc32" "check" >/dev/null || to_generate="$to_generate
+	find_check_xorpad "$rom" "$rom_crc32" >/dev/null || to_generate="$to_generate
 $rom"
 done
 if [ -n "$to_generate" ]; then
@@ -133,9 +133,6 @@ for rom in roms/*.3[dD][sS]; do
 		continue
 	fi
 
-	rm -rf _tmp
-	mkdir -p _tmp
-
 	eval rom_crc32=\$${n}
 
 	# Verify xorpads (both "standard" an "custom format")
@@ -143,6 +140,8 @@ for rom in roms/*.3[dD][sS]; do
 		fail=$?
 		continue
 	fi
+
+	rm -f _tmp/*.cxi _tmp/*.cfa
 
 	# Extract cxi and cfa
 	"$rom_tool" --extract=_tmp "$rom"
