@@ -316,7 +316,12 @@ if __name__ == "__main__":
 			data = data + result[1]
 	else:
 	    with open(file,'rb') as fh:
-		crc32 = binascii.crc32(fh.read()) & 0xFFFFFFFF
+                crc32 = 0
+                while True:
+                    buf = fh.read(0x10000)
+                    if not buf: break
+		    crc32 = binascii.crc32(buf, crc32)
+                crc32 = crc32 & 0xFFFFFFFF
 		fh.seek(0x100)
 		magic = fh.read(4)
 		if magic == b'NCSD':
