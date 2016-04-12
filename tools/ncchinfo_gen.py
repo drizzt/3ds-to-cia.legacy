@@ -298,7 +298,7 @@ if __name__ == "__main__":
             with zipfile.ZipFile(file, 'r') as e:
                 for entry in e.infolist():
                     if not entry.filename.lower().endswith('.3ds'): continue
-		    crc32 = entry.CRC
+		    crc32 = entry.CRC & 0xFFFFFFFF
                     tmpdir = tempfile.mkdtemp()
                     with open(os.path.join(tmpdir, entry.filename), 'w+b') as fh:
                         fh.write(e.open(entry, 'r').read(0x10000))
