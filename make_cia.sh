@@ -27,7 +27,7 @@ get_title_id() {
 # Find and check the xorpad file (both standard and custom format)
 # find_check_xorpad rom_filename rom_crc32 [check]
 find_check_xorpad() {
-	local rom="$1" rom_crc32="$2" xorpad= title_id= x tmp
+	local rom="$1" rom_crc32="$2" check="$3" xorpad= title_id= x tmp
 	title_id=$(get_title_id "$rom") || return 1
 
 	if [ -f "_tmp/$title_id.$rom_crc32.Main.exheader.xorpad" ]; then
@@ -62,7 +62,8 @@ find_check_xorpad() {
 	fi
 
 	if ! [ -f "$xorpad" ]; then
-		echo "$(basename "$xorpad") not found. Please put it into the 'xorpads' directory." >&2
+		[ -z "$check" ] && \
+			echo "$(basename "$xorpad") not found. Please put it into the 'xorpads' directory." >&2
 		return 2
 	fi
 
@@ -112,7 +113,7 @@ for rom in roms/*.3[dD][sS]; do
 	rom_crc32="$("$crc32" "$rom")"
 	roms_crc32="$roms_crc32
 $rom_crc32"
-	find_check_xorpad "$rom" "$rom_crc32" >/dev/null || to_generate="$to_generate
+	find_check_xorpad "$rom" "$rom_crc32" 1 >/dev/null || to_generate="$to_generate
 $rom"
 done
 if [ -n "$to_generate" ]; then
