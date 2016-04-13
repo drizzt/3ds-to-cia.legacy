@@ -27,7 +27,7 @@ get_title_id() {
 # Find and check the xorpad file (both standard and custom format)
 # find_check_xorpad rom_filename rom_crc32 [check]
 find_check_xorpad() {
-	local rom="$1" rom_crc32="$2" xorpad= title_id= x
+	local rom="$1" rom_crc32="$2" xorpad= title_id= x tmp
 	title_id=$(get_title_id "$rom") || return 1
 
 	if [ -f "_tmp/$title_id.$rom_crc32.Main.exheader.xorpad" ]; then
@@ -37,11 +37,21 @@ find_check_xorpad() {
 
 	for x in xorpads/*.zip; do
 		[ -f "$x" ] || continue
+		xorpad="$title_id.$rom_crc32.Main.exheader.xorpad"
 		if unzip -d _tmp "$x" "$title_id.$rom_crc32.Main.exheader.xorpad" >/dev/null && \
-			[ -f "_tmp/$title_id.$rom_crc32.Main.exheader.xorpad" ]; then
+			[ -f "_tmp/$xorpad" ]; then
 
-			echo "_tmp/$title_id.$rom_crc32.Main.exheader.xorpad"
+			echo "_tmp/$xorpad"
 			return 0
+		else
+			tmp=$(unzip -lqq "$x" | grep "$title_id\.$rom_crc32\.Main\.exheader\.xorpad$" | awk '{for(i=4;i<=NF;++i)print $i}')
+			if [ -n "$tmp" ]; then
+				unzip -p "$x" "$tmp" > "_tmp/$xorpad" || true
+				if [ -f "_tmp/$xorpad" ]; then
+					echo "_tmp/$xorpad"
+					return 0
+				fi
+			fi
 		fi
 	done
 
